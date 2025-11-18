@@ -1,15 +1,23 @@
 {
-  "ignored_words": [
-    "uh",
-    "umm",
-    "hmm",
-    "haan",
-    "er",
-    "ah",
-    "yes",
-    "yeah",
-    "okay",
-    "right"
+  "languages": {
+    "en": [
+      "uh",
+      "um",
+      "umm",
+      "hmm",
+      "yeah",
+      "okay"
+    ],
+    "hi": [
+      "haan",
+      "accha",
+      "matlab",
+      "arre"
+    ]
+  },
+  "active_languages": [
+    "en",
+    "hi"
   ],
   "poll_interval": 2
 }

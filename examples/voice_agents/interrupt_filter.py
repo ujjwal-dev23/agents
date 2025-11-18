@@ -36,11 +36,16 @@ class InterruptFilter:
             with open(self.config_path, "r") as f:
                 data = json.load(f)
                 # Expected JSON format : {"ignored words": ["word1", "word2"], "poll_interval": time_in_seconds}
-                words = data.get("ignored_words", [])
-                self.ignored_words = {w.strip().lower() for w in words}
+                self.ignored_words = set()
+                active_langs = data.get("active_languages", ["en"])
+                all_langs = data.get("languages", {})
+                for lang in active_langs:
+                    self.ignored_words.update(all_langs.get(lang, []))
                 logger.info(f"Updated ignored words list : {self.ignored_words}")
+
                 self.poll_interval = data.get("poll_interval")
                 logger.info(f"Updated poll interval to {self.poll_interval} seconds")
+
         except Exception as e:
             logger.error(f"Failed to load config file : {e}")
 
