@@ -72,7 +72,7 @@ class InterruptFilter:
         except Exception as e:
             logger.warning(f"Failed to resume speech : {e}")
 
-    def clean_text(self, text: str) -> Set[str]:
+    def clean_text(self, text: str) -> set[str]:
         """Cleans transcription text into a set of words"""
         return set(text.lower().strip(".,!?").split())
 

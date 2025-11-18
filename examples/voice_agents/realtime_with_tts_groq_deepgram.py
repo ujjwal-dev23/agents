@@ -1,14 +1,18 @@
-import logging
 from dotenv import load_dotenv
+import logging
+import os
 
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, cli, room_io
 from livekit.agents.llm import function_tool
 from livekit.plugins import deepgram, groq, silero
+from .interrupt_filter import InterruptFilter
+from livekit.agents.voice.agent_session import AgentStateChangedEvent, UserInputTranscribedEvent
 
 load_dotenv()
 
 logger = logging.getLogger("realtime-with-tts")
 logger.setLevel(logging.INFO)
+
 
 class WeatherAgent(Agent):
     def __init__(self) -> None:
@@ -16,15 +20,12 @@ class WeatherAgent(Agent):
             instructions="You are a helpful and concise assistant.",
             # 1. Hearing (Deepgram STT)
             stt=deepgram.STT(),
-            
             # 2. Thinking (Groq LLM - Llama 3)
             llm=groq.LLM(model="llama-3.1-8b-instant"),
-            
             # 3. Speaking (Deepgram TTS)
             tts=deepgram.TTS(),
-            
             # 4. Interruption Detection (Silero VAD)
-            vad=silero.VAD.load()
+            vad=silero.VAD.load(),
         )
 
     @function_tool
@@ -33,28 +34,77 @@ class WeatherAgent(Agent):
         logger.info(f"getting weather for {location}")
         return f"The weather in {location} is sunny, and the temperature is 20 degrees Celsius."
 
+
 server = AgentServer()
+
 
 @server.rtc_session()
 async def entrypoint(ctx: JobContext):
-    # Connect to the room
-    await ctx.connect()
-    
-    # Create the session
-    session = AgentSession()
+  # Setup Logging
+  formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+  handler = logging.StreamHandler()
+  handler.setFormatter(formatter)
+  
+  root_logger = logging.getLogger()
+  root_logger.handlers.clear()
+  root_logger.addHandler(handler)
+  
+  # Set DEBUG level logging to see our logic
+  logging.getLogger("interrupt-filter").setLevel(logging.DEBUG) 
 
-    # Start the agent with the room
-    await session.start(
-        agent=WeatherAgent(),
-        room=ctx.room,
-        room_options=room_io.RoomOptions(
-            text_output=True,
-            audio_output=True,
-        ),
-    )
+  session = AgentSession()
+  filter = InterruptFilter(session, config_path="ignored_words.json")
+  
+  # Define event listeners
+  @session.on("agent_state_changed")
+  def on_agent_state_changed(event: AgentStateChangedEvent):
+    """Tracks if the agent is currently speaking or listening"""
+    if event.new_state == "speaking":
+      filter.agent_is_speaking = True
+    elif event.new_state == "listening":
+      filter.agent_is_speaking = False
+      
+  @session.on("user_input_transcribed")
+  def on_transcription(event: UserInputTranscribedEvent):
+    """Decides whether to ignore the user's speech or allow the interruption"""
     
-    # Say hello
-    session.generate_reply(instructions="say hello to the user")
+    # Scenario 1 : Agent is listening
+    # Always register speech
+    if not filter.agent_is_speaking:
+      logger.info(f"Speech REGISTERED (agent quiet): '{event.text}'")
+      return
+    
+    # Scenario 2 : Agent is speaking
+    
+    # Check 1 : is confidence low (e.g background noise)
+    if event.confidence < filter.confidence_threshold:
+      filter.resume_agent_speech()
+      return
+
+    # Check 2 : is it a filler word
+    # remove any words found in our ignored_words list
+    user_words = filter.clean_text(event.text)
+    non_filler_words = [word for word in user_words if word not in filter.ignored_words]
+
+    if not non_filler_words:
+      # No words remain, it was all filler. Ignore and resume speaking
+      logger.debug(f"Interruption IGNORED (filler) : '{event.text}'")
+      filter.resume_agent_speech()
+    else:
+      # Valid words remain, allow the interruption (automatically handled by the agent)
+      logger.warning(f"Interruption REGISTERED (valid): '{event.text}'")
+  
+  # Start the agent
+  await session.start(
+    agent=WeatherAgent(),
+    room=ctx.room,
+    room_options=room_io.RoomOptions(
+      text_output=True,
+      audio_output=True
+    ),
+  )
+  
+  session.generate_reply(instructions="say hello to the user")
 
 if __name__ == "__main__":
     cli.run_app(server)
