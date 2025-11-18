@@ -24,9 +24,9 @@ class WeatherAgent(Agent):
     def __init__(self) -> None:
         super().__init__(
             instructions="You are a helpful assistant.",
-            #llm=openai.realtime.RealtimeModel(modalities=["text"]),
+            # llm=openai.realtime.RealtimeModel(modalities=["text"]),
             llm=google.beta.realtime.RealtimeModel(modalities=[Modality.TEXT]),
-            tts=google.beta.gemini_tts.TTS(), # Switched from openai to gemini for testing since gemini provides a free api key unlike openai
+            tts=google.beta.gemini_tts.TTS(),  # Switched from openai to gemini for testing since gemini provides a free api key unlike openai
         )
 
     @function_tool
