@@ -1,0 +1,11 @@
+{
+  "ignored_words": [
+    "uh",
+    "umm",
+    "hmm",
+    "haan",
+    "er",
+    "ah"
+  ],
+  "poll_interval": 2
+}
