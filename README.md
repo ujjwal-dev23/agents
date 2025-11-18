@@ -82,7 +82,7 @@ To run the agent and test interactively:
 
 1.  **Start the Agent:**
     ```bash
-    python examples.voice_agents.assessment.realtime_with_tts_grok_deepgram start
+    python -m examples.voice_agents.assessment.realtime_with_tts_grok_deepgram start
     ```
 2.  **Connect:** Join the room using the LiveKit Playground or a client frontend.
 3.  **Test Scenarios:**
