@@ -1,13 +1,14 @@
 import asyncio
-from dotenv import load_dotenv
 import logging
-import os
+
+from dotenv import load_dotenv
 
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, cli, room_io
 from livekit.agents.llm import function_tool
-from livekit.plugins import deepgram, groq, silero
-from .interrupt_filter import InterruptFilter
 from livekit.agents.voice.agent_session import AgentStateChangedEvent, UserInputTranscribedEvent
+from livekit.plugins import deepgram, groq, silero
+
+from .interrupt_filter import InterruptFilter
 
 load_dotenv()
 

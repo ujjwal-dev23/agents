@@ -1,8 +1,9 @@
-import logging
-import re
-import json
 import asyncio
+import json
+import logging
 import os
+import re
+
 from livekit.agents.voice.agent_session import AgentSession
 
 logger = logging.getLogger("interrupt-filter")
@@ -33,7 +34,7 @@ class InterruptFilter:
             return
 
         try:
-            with open(self.config_path, "r") as f:
+            with open(self.config_path) as f:
                 data = json.load(f)
                 # Expected JSON format : {"ignored words": ["word1", "word2"], "poll_interval": time_in_seconds}
                 self.ignored_words = set()
