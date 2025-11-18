@@ -1,4 +1,5 @@
 import logging
+import re
 import json
 import asyncio
 import os
@@ -74,7 +75,8 @@ class InterruptFilter:
 
     def clean_text(self, text: str) -> set[str]:
         """Cleans transcription text into a set of words"""
-        return set(text.lower().strip(".,!?").split())
+        words = re.findall(r'\b\w+\b', text.lower())
+        return set(words)
 
     def __del__(self):
         # Cleanup the background task if filter is destroyed
