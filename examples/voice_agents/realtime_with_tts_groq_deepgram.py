@@ -1,3 +1,4 @@
+import asyncio
 from dotenv import load_dotenv
 import logging
 import os
@@ -17,7 +18,7 @@ logger.setLevel(logging.INFO)
 class WeatherAgent(Agent):
     def __init__(self) -> None:
         super().__init__(
-            instructions="You are a helpful and concise assistant.",
+            instructions="You are a helpful assistant.",
             # 1. Hearing (Deepgram STT)
             stt=deepgram.STT(),
             # 2. Thinking (Groq LLM - Llama 3)
@@ -51,9 +52,18 @@ async def entrypoint(ctx: JobContext):
   
   # Set DEBUG level logging to see our logic
   logging.getLogger("interrupt-filter").setLevel(logging.DEBUG) 
-
-  session = AgentSession()
+  
+  # Initialize session
+  session = AgentSession(
+    allow_interruptions=False,
+    discard_audio_if_uninterruptible=False
+  )
   filter = InterruptFilter(session, config_path="ignored_words.json")
+
+  # Helper function to handle valid interruptions safely
+  async def interrupt_and_reply(text:str):
+    await session.interrupt(force=True)
+    await session.generate_reply(user_input=text)
   
   # Define event listeners
   @session.on("agent_state_changed")
@@ -67,32 +77,36 @@ async def entrypoint(ctx: JobContext):
   @session.on("user_input_transcribed")
   def on_transcription(event: UserInputTranscribedEvent):
     """Decides whether to ignore the user's speech or allow the interruption"""
+    text_content = event.transcript
     
     # Scenario 1 : Agent is listening
     # Always register speech
     if not filter.agent_is_speaking:
-      logger.info(f"Speech REGISTERED (agent quiet): '{event.text}'")
+      logger.info(f"Speech REGISTERED (agent quiet): '{text_content}'")
+      asyncio.create_task(session.generate_reply(user_input=text_content)) # Manual reply trigger since VAD is disabled
       return
     
     # Scenario 2 : Agent is speaking
     
     # Check 1 : is confidence low (e.g background noise)
+    """
     if event.confidence < filter.confidence_threshold:
       filter.resume_agent_speech()
       return
+    """
 
     # Check 2 : is it a filler word
     # remove any words found in our ignored_words list
-    user_words = filter.clean_text(event.text)
+    user_words = filter.clean_text(text_content)
     non_filler_words = [word for word in user_words if word not in filter.ignored_words]
 
     if not non_filler_words:
-      # No words remain, it was all filler. Ignore and resume speaking
-      logger.debug(f"Interruption IGNORED (filler) : '{event.text}'")
-      filter.resume_agent_speech()
+      # It was all filler. Ignore and continue speaking
+      logger.debug(f"Interruption IGNORED (filler) : '{text_content}'")
     else:
-      # Valid words remain, allow the interruption (automatically handled by the agent)
-      logger.warning(f"Interruption REGISTERED (valid): '{event.text}'")
+      # Valid words remain, allow the interruption
+      logger.warning(f"Interruption REGISTERED (valid): '{text_content}'")
+      asyncio.create_task(interrupt_and_reply(text_content)) # Manually handle new input
   
   # Start the agent
   await session.start(
@@ -104,7 +118,7 @@ async def entrypoint(ctx: JobContext):
     ),
   )
   
-  session.generate_reply(instructions="say hello to the user")
+  session.generate_reply(instructions="say hello to the user and immediately start telling a long, 100-word story about the history of computers")
 
 if __name__ == "__main__":
     cli.run_app(server)
